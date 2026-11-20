@@ -44,7 +44,7 @@
   .vitoria .gif{font-size:90px;animation:danca .6s infinite alternate}
   @keyframes danca{from{transform:rotate(-15deg)}to{transform:rotate(15deg) translateY(-10px)}}
   .acoes{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-  .acoes button{font-size:16px;padding:12px 22px;--d:#6d28d9;background:#8b5cf6}
+  .acoes button,.acoes a{font-size:16px;padding:12px 22px;--d:#6d28d9;background:#8b5cf6}
   .tremer{animation:tremer .3s}
   @keyframes tremer{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important}}
@@ -58,9 +58,14 @@
   .link .acoes{margin-top:10px}
   .link .acoes a,.link .acoes button{font-size:15px;padding:11px 18px}
   a.btn{display:inline-block;text-decoration:none;color:#fff;font-weight:800;border-radius:999px;box-shadow:0 6px 0 var(--d)}
-  .zap{--d:#15803d;background:#22c55e}
+  .acoes .zap{--d:#15803d;background:#22c55e}
+  #contar{font-size:19px;padding:15px 26px}
   .pergunta{font-weight:800;font-size:clamp(24px,6vw,38px);line-height:1.2;margin:4px 0 22px;word-break:break-word}
   [hidden]{display:none!important}
+  .campos{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .campos label{flex:1 1 180px;text-align:left;font-size:13px;font-weight:700;opacity:.8}
+  .campos input{display:block;width:100%;margin-top:4px;font:inherit;font-size:16px;padding:10px 12px;border-radius:12px;border:2px solid #0001;background:#fff;user-select:text}
+  .de{font-size:15px;opacity:.7;margin:0}
 </style>
 </head>
 <body>
@@ -70,6 +75,10 @@
   <h2>Faça sua pergunta</h2>
   <p class="sub">Escreva, gere o link e mande pra pessoa. Ela só vai conseguir clicar no Sim 😏</p>
   <textarea class="q" id="q" rows="2" maxlength="140" spellcheck="false" placeholder="Ex.: Você quer sair comigo?">Você quer sair comigo?</textarea>
+  <div class="campos">
+    <label>Seu nome (opcional)<input id="nome" maxlength="30" placeholder="Ex.: Breno"></label>
+    <label>Seu WhatsApp, pra receber a resposta<input id="zapnum" inputmode="tel" maxlength="20" placeholder="(11) 91234-5678"></label>
+  </div>
   <button class="gerar" id="gerar">Gerar link 🔗</button>
   <div class="link" id="link">
     <input id="url" readonly>
@@ -84,6 +93,7 @@
 <!-- MODO 2: quem recebeu o link responde -->
 <main class="card" id="card" hidden>
   <div class="face" id="face">🥺</div>
+  <p class="de" id="de" hidden></p>
   <div class="pergunta" id="pergunta"></div>
   <div class="row">
     <button id="sim">Sim</button>
@@ -97,6 +107,7 @@
   <h1>EBAAAA! 🎉</h1>
   <p id="vitoriaTxt">Eu sabia que você ia dizer sim!</p>
   <div class="acoes">
+    <a class="btn zap" id="contar" target="_blank" rel="noopener" hidden></a>
     <button id="minha">✨ Fazer a minha pergunta</button>
   </div>
 </section>
@@ -134,7 +145,10 @@ function bichoCorrendo() {
 }
 setInterval(() => { if (Math.random() < .5) bichoCorrendo(); }, 3500);
 
-const pergunta = (new URLSearchParams(location.search).get('q') || '').trim().slice(0,140);
+const params = new URLSearchParams(location.search);
+const pergunta = (params.get('q') || '').trim().slice(0,140);
+const nomeDono = (params.get('n') || '').trim().slice(0,30);
+const zapDono = (params.get('w') || '').replace(/\D/g,'').slice(0,15);
 
 if (!pergunta) {
   // ---------- MODO CRIAR ----------
@@ -146,7 +160,13 @@ if (!pergunta) {
   $('#gerar').addEventListener('click', () => {
     const txt = q.value.trim();
     if (!txt) { q.focus(); q.classList.add('tremer'); setTimeout(()=>q.classList.remove('tremer'),300); return; }
-    const url = location.origin + location.pathname + '?q=' + encodeURIComponent(txt);
+    const u = new URLSearchParams({q: txt});
+    const nome = $('#nome').value.trim();
+    let num = $('#zapnum').value.replace(/\D/g,'');
+    if (num.length === 10 || num.length === 11) num = '55' + num;   // número BR sem o 55
+    if (nome) u.set('n', nome);
+    if (num.length >= 10) u.set('w', num);
+    const url = location.origin + location.pathname + '?' + u.toString();
     $('#url').value = url;
     $('#testar').href = url;
     $('#zap').href = 'https://wa.me/?text=' + encodeURIComponent('Tenho uma pergunta pra você 👉 ' + url);
@@ -163,6 +183,7 @@ if (!pergunta) {
   $('#card').hidden = false;
   $('#pergunta').textContent = pergunta;
   document.title = pergunta;
+  if (nomeDono) { $('#de').textContent = nomeDono + ' quer saber:'; $('#de').hidden = false; }
   const sim = $('#sim'), nao = $('#nao'), msg = $('#msg'), face = $('#face');
   let fugas = 0, escala = 1;
 
@@ -208,6 +229,14 @@ if (!pergunta) {
     $('#vitoriaTxt').textContent = fugas === 0
       ? 'De primeira! Nem precisou fugir 😎'
       : `Depois de ${fugas} tentativa${fugas>1?'s':''} de clicar no Não... mas eu sabia que era SIM! 💚`;
+    if (zapDono) {
+      const tent = fugas === 0 ? 'de primeira 😎' : `depois de tentar clicar no Não ${fugas} vez${fugas>1?'es':''} 😂`;
+      const txt = `Respondi SIM pra "${pergunta}" 💚 (${tent})`;
+      const c = $('#contar');
+      c.href = `https://wa.me/${zapDono}?text=` + encodeURIComponent(txt);
+      c.textContent = '💬 Contar pra ' + (nomeDono || 'quem perguntou');
+      c.hidden = false;
+    }
     $('#vitoria').classList.add('on');
     nao.style.display = 'none';
     const chover = () => { for (let i=0;i<6;i++) bicho(rand(0, innerWidth-40), 0, 'chuva', {vars:{'--r': rand(-360,360)+'deg'}, dur: rand(2.5,5), size: rand(28,64)}); };
