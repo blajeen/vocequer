@@ -48,13 +48,43 @@
   .tremer{animation:tremer .3s}
   @keyframes tremer{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important}}
+  .criar h2{margin:0 0 4px;font-size:clamp(22px,5vw,30px)}
+  .criar .sub{opacity:.7;margin:0 0 16px}
+  .criar .q{border:2px solid #0001;border-radius:16px;background:#fff;padding:12px;font-size:20px}
+  .gerar{margin-top:16px;--d:#9d174d;background:#ec4899}
+  .link{display:none;margin-top:18px;text-align:left}
+  .link.on{display:block}
+  .link input{width:100%;font:inherit;font-size:14px;padding:12px;border-radius:12px;border:2px solid #0001;background:#f8fafc;user-select:all}
+  .link .acoes{margin-top:10px}
+  .link .acoes a,.link .acoes button{font-size:15px;padding:11px 18px}
+  a.btn{display:inline-block;text-decoration:none;color:#fff;font-weight:800;border-radius:999px;box-shadow:0 6px 0 var(--d)}
+  .zap{--d:#15803d;background:#22c55e}
+  .pergunta{font-weight:800;font-size:clamp(24px,6vw,38px);line-height:1.2;margin:4px 0 22px;word-break:break-word}
+  [hidden]{display:none!important}
 </style>
 </head>
 <body>
-<main class="card" id="card">
+<!-- MODO 1: criar a pergunta e gerar o link -->
+<main class="card criar" id="criar" hidden>
+  <div class="face">🐶💌</div>
+  <h2>Faça sua pergunta</h2>
+  <p class="sub">Escreva, gere o link e mande pra pessoa. Ela só vai conseguir clicar no Sim 😏</p>
+  <textarea class="q" id="q" rows="2" maxlength="140" spellcheck="false" placeholder="Ex.: Você quer sair comigo?">Você quer sair comigo?</textarea>
+  <button class="gerar" id="gerar">Gerar link 🔗</button>
+  <div class="link" id="link">
+    <input id="url" readonly>
+    <div class="acoes">
+      <button id="copiar">📋 Copiar</button>
+      <a class="btn zap" id="zap" target="_blank" rel="noopener">💬 WhatsApp</a>
+      <a class="btn" id="testar" style="--d:#6d28d9;background:#8b5cf6" target="_blank" rel="noopener">👀 Testar</a>
+    </div>
+  </div>
+</main>
+
+<!-- MODO 2: quem recebeu o link responde -->
+<main class="card" id="card" hidden>
   <div class="face" id="face">🥺</div>
-  <textarea class="q" id="q" rows="2" maxlength="140" spellcheck="false">Você quer sair comigo?</textarea>
-  <div class="hint">✏️ Toque na pergunta para escrever a sua</div>
+  <div class="pergunta" id="pergunta"></div>
   <div class="row">
     <button id="sim">Sim</button>
     <button id="nao">Não</button>
@@ -67,14 +97,12 @@
   <h1>EBAAAA! 🎉</h1>
   <p id="vitoriaTxt">Eu sabia que você ia dizer sim!</p>
   <div class="acoes">
-    <button id="compartilhar">🔗 Copiar link com a pergunta</button>
-    <button id="denovo">🔁 Fazer outra pergunta</button>
+    <button id="minha">✨ Fazer a minha pergunta</button>
   </div>
 </section>
 
 <script>
 const $ = s => document.querySelector(s);
-const sim = $('#sim'), nao = $('#nao'), q = $('#q'), msg = $('#msg'), face = $('#face');
 const BICHOS = ['🐶','🐱','🐰','🐹','🐼','🐨','🐸','🐷','🐮','🐵','🐔','🐧','🦆','🦉','🐢','🐙','🦄','🐝','🐞','🦖','🐳','🦊','🦥','🦦','🐿️','🦔','🐌','🦀'];
 const FRASES = [
   'Ops, errou o botão 😅','Tem certeza?? 🤨','Pensa bem...','O bichinho tá chorando 😭','Esse botão tá com medo de você',
@@ -83,15 +111,10 @@ const FRASES = [
   'Já chamei os patos 🦆🦆🦆','Você é teimoso(a), hein!','Ok, agora é pessoal 😤','Aperta o verde 💚'
 ];
 const ROSTOS = ['🥺','😢','😭','🥹','😿','💔','😩','🙀','😤','🫠'];
-let fugas = 0, escala = 1;
+// Os 5 lugares para onde o Não foge, em loop (em % da tela: [horizontal, vertical])
+const LUGARES = [[.12,.1],[.88,.12],[.88,.9],[.12,.9],[.5,.06]];
 const rand = (a,b) => Math.random()*(b-a)+a;
 const pick = a => a[Math.floor(Math.random()*a.length)];
-
-// Pergunta vinda do link (?q=...)
-const p = new URLSearchParams(location.search).get('q');
-if (p) q.value = p.slice(0,140);
-const autoAjuste = () => { q.style.height='auto'; q.style.height = q.scrollHeight+'px'; };
-q.addEventListener('input', autoAjuste); autoAjuste();
 
 function bicho(x, y, cls='pop', extra={}) {
   const el = document.createElement('div');
@@ -104,85 +127,95 @@ function bicho(x, y, cls='pop', extra={}) {
   document.body.appendChild(el);
   el.addEventListener('animationend', () => el.remove());
 }
-
 function bichoCorrendo() {
   const daEsq = Math.random() < .5, w = innerWidth;
   bicho(daEsq ? -60 : w+10, rand(innerHeight*.1, innerHeight*.9), 'corre',
     {vars:{'--dx': (daEsq ? w+120 : -(w+120))+'px'}, dur: rand(2,4), size: rand(36,60)});
 }
-
-function fugir(e) {
-  if (e) e.preventDefault();
-  fugas++;
-  const r = nao.getBoundingClientRect();
-  if (!nao.classList.contains('fugindo')) {
-    nao.style.left = r.left+'px'; nao.style.top = r.top+'px';
-    nao.classList.add('fugindo'); void nao.offsetWidth;
-  }
-  // Escolhe novo lugar longe do atual e longe do botão Sim
-  const pad = 12, w = nao.offsetWidth, h = nao.offsetHeight;
-  const s = sim.getBoundingClientRect();
-  let x, y, tent = 0;
-  do {
-    x = rand(pad, innerWidth - w - pad);
-    y = rand(pad, innerHeight - h - pad);
-    tent++;
-  } while (tent < 40 && (Math.hypot(x-r.left, y-r.top) < 140 ||
-          (x < s.right+20 && x+w > s.left-20 && y < s.bottom+20 && y+h > s.top-20)));
-  nao.style.left = x+'px'; nao.style.top = y+'px';
-  nao.style.transform = `rotate(${rand(-20,20)}deg) scale(${Math.max(.55, 1 - fugas*.03)})`;
-
-  // Sim cresce
-  escala = Math.min(escala + .18, Math.max(2.5, Math.min(innerWidth, innerHeight)/90));
-  sim.style.transform = `scale(${escala})`;
-
-  // Texto, rosto e bichinhos
-  msg.textContent = FRASES[(fugas-1) % FRASES.length];
-  face.textContent = ROSTOS[Math.min(fugas-1, ROSTOS.length-1)];
-  face.style.transform = `scale(${1+Math.min(fugas,10)*.04})`;
-  if (fugas >= 6) nao.textContent = pick(['Não','Nãoo','Nem','N-não','Nop','🙈']);
-  const n = Math.min(2 + Math.floor(fugas/2), 8);
-  for (let i=0;i<n;i++) bicho(rand(0, innerWidth-50), rand(0, innerHeight-50));
-  if (fugas % 3 === 0) bichoCorrendo();
-  if (fugas % 5 === 0) { document.body.classList.add('tremer'); setTimeout(()=>document.body.classList.remove('tremer'),300); }
-  if (navigator.vibrate) navigator.vibrate(30);
-}
-
-// Foge ao passar o mouse, ao tocar e até se conseguir clicar/focar
-nao.addEventListener('mouseenter', fugir);
-nao.addEventListener('pointerdown', fugir);
-nao.addEventListener('touchstart', fugir, {passive:false});
-nao.addEventListener('click', fugir);
-nao.addEventListener('focus', () => { fugir(); nao.blur(); });
-// Mouse chegando perto também assusta
-document.addEventListener('mousemove', e => {
-  const r = nao.getBoundingClientRect();
-  const dx = e.clientX - (r.left+r.width/2), dy = e.clientY - (r.top+r.height/2);
-  if (Math.hypot(dx,dy) < 70 && !fugir.cool) { fugir.cool = true; fugir(); setTimeout(()=>fugir.cool=false, 280); }
-});
-addEventListener('resize', () => { if (nao.classList.contains('fugindo')) fugir(); });
-
-let chuvaTimer;
-sim.addEventListener('click', () => {
-  $('#vitoriaTxt').textContent = fugas === 0
-    ? 'De primeira! Nem precisou fugir 😎'
-    : `Depois de ${fugas} tentativa${fugas>1?'s':''} de clicar no Não... mas eu sabia que era SIM! 💚`;
-  $('#vitoria').classList.add('on');
-  nao.style.display = 'none';
-  const chover = () => { for (let i=0;i<6;i++) bicho(rand(0, innerWidth-40), 0, 'chuva', {vars:{'--r': rand(-360,360)+'deg'}, dur: rand(2.5,5), size: rand(28,64)}); };
-  chover(); chuvaTimer = setInterval(chover, 350);
-  setInterval(() => { $('#vitoria .gif').textContent = pick(BICHOS); }, 700);
-});
-
-$('#denovo').addEventListener('click', () => { history.replaceState(null,'',location.pathname); location.reload(); });
-$('#compartilhar').addEventListener('click', async e => {
-  const url = location.origin + location.pathname + '?q=' + encodeURIComponent(q.value.trim());
-  try { await navigator.clipboard.writeText(url); e.target.textContent = '✅ Link copiado!'; }
-  catch { prompt('Copie o link:', url); }
-});
-
-// Bichinhos passeando de vez em quando
 setInterval(() => { if (Math.random() < .5) bichoCorrendo(); }, 3500);
+
+const pergunta = (new URLSearchParams(location.search).get('q') || '').trim().slice(0,140);
+
+if (!pergunta) {
+  // ---------- MODO CRIAR ----------
+  $('#criar').hidden = false;
+  const q = $('#q');
+  const autoAjuste = () => { q.style.height='auto'; q.style.height = q.scrollHeight+'px'; };
+  q.addEventListener('input', () => { autoAjuste(); $('#link').classList.remove('on'); });
+  autoAjuste();
+  $('#gerar').addEventListener('click', () => {
+    const txt = q.value.trim();
+    if (!txt) { q.focus(); q.classList.add('tremer'); setTimeout(()=>q.classList.remove('tremer'),300); return; }
+    const url = location.origin + location.pathname + '?q=' + encodeURIComponent(txt);
+    $('#url').value = url;
+    $('#testar').href = url;
+    $('#zap').href = 'https://wa.me/?text=' + encodeURIComponent('Tenho uma pergunta pra você 👉 ' + url);
+    $('#link').classList.add('on');
+    for (let i=0;i<5;i++) bicho(rand(0, innerWidth-50), rand(0, innerHeight-50));
+  });
+  $('#copiar').addEventListener('click', async e => {
+    try { await navigator.clipboard.writeText($('#url').value); e.target.textContent = '✅ Copiado!'; }
+    catch { $('#url').select(); document.execCommand('copy'); e.target.textContent = '✅ Copiado!'; }
+    setTimeout(() => e.target.textContent = '📋 Copiar', 2000);
+  });
+} else {
+  // ---------- MODO RESPONDER ----------
+  $('#card').hidden = false;
+  $('#pergunta').textContent = pergunta;
+  document.title = pergunta;
+  const sim = $('#sim'), nao = $('#nao'), msg = $('#msg'), face = $('#face');
+  let fugas = 0, escala = 1;
+
+  function fugir(e) {
+    if (e) e.preventDefault();
+    if (fugir.cool) return;            // evita contar 2x no mesmo toque
+    fugir.cool = true; setTimeout(() => fugir.cool = false, 200);
+    fugas++;
+    if (nao.parentNode !== document.body) {
+      // tira o botão de dentro do cartão para ele poder andar pela tela toda
+      const r = nao.getBoundingClientRect();
+      document.body.appendChild(nao);
+      nao.classList.add('fugindo');
+      nao.style.left = r.left+'px'; nao.style.top = r.top+'px';
+      void nao.offsetWidth;
+    }
+    // Pula entre os 5 lugares, em loop: dá pra ver e tentar de novo
+    const pad = 12, w = nao.offsetWidth, h = nao.offsetHeight;
+    const [fx, fy] = LUGARES[(fugas-1) % LUGARES.length];
+    const x = Math.min(Math.max(pad, fx*innerWidth - w/2), innerWidth - w - pad);
+    const y = Math.min(Math.max(pad, fy*innerHeight - h/2), innerHeight - h - pad);
+    nao.style.left = x+'px'; nao.style.top = y+'px';
+    nao.style.transform = `rotate(${rand(-12,12)}deg)`;
+
+    escala = Math.min(escala + .15, 2.2);
+    sim.style.transform = `scale(${escala})`;
+
+    msg.textContent = FRASES[(fugas-1) % FRASES.length];
+    face.textContent = ROSTOS[Math.min(fugas-1, ROSTOS.length-1)];
+    if (fugas >= 6) nao.textContent = pick(['Não','Nãoo','Nem','N-não','Nop','🙈']);
+    const n = Math.min(2 + Math.floor(fugas/2), 8);
+    for (let i=0;i<n;i++) bicho(rand(0, innerWidth-50), rand(0, innerHeight-50));
+    if (fugas % 3 === 0) bichoCorrendo();
+    if (fugas % 5 === 0) { document.body.classList.add('tremer'); setTimeout(()=>document.body.classList.remove('tremer'),300); }
+    if (navigator.vibrate) navigator.vibrate(30);
+  }
+  nao.addEventListener('mouseenter', fugir);
+  nao.addEventListener('pointerdown', fugir);
+  nao.addEventListener('touchstart', fugir, {passive:false});
+  nao.addEventListener('click', fugir);
+
+  sim.addEventListener('click', () => {
+    $('#vitoriaTxt').textContent = fugas === 0
+      ? 'De primeira! Nem precisou fugir 😎'
+      : `Depois de ${fugas} tentativa${fugas>1?'s':''} de clicar no Não... mas eu sabia que era SIM! 💚`;
+    $('#vitoria').classList.add('on');
+    nao.style.display = 'none';
+    const chover = () => { for (let i=0;i<6;i++) bicho(rand(0, innerWidth-40), 0, 'chuva', {vars:{'--r': rand(-360,360)+'deg'}, dur: rand(2.5,5), size: rand(28,64)}); };
+    chover(); setInterval(chover, 350);
+    setInterval(() => { $('#vitoria .gif').textContent = pick(BICHOS); }, 700);
+  });
+  $('#minha').addEventListener('click', () => { location.href = location.pathname; });
+}
 </script>
 </body>
 </html>
