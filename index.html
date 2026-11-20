@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Você quer?</title>
+<meta name="description" content="Faça uma pergunta. O Não foge. O Sim cresce. Os bichinhos aparecem.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>">
+<style>
+  :root{--bg1:#ffe3ec;--bg2:#e3f0ff;--ink:#2b2340;--sim:#22c55e;--simd:#15803d;--nao:#ef4444;--naod:#b91c1c;--card:#ffffffcc}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));display:flex;align-items:center;justify-content:center;padding:16px;touch-action:manipulation;user-select:none}
+  .card{position:relative;z-index:2;background:var(--card);backdrop-filter:blur(6px);border-radius:24px;padding:28px 22px;max-width:560px;width:100%;
+    box-shadow:0 20px 50px #0002;text-align:center}
+  .face{font-size:64px;line-height:1;margin-bottom:6px;transition:transform .2s}
+  .q{width:100%;border:none;background:transparent;font-family:inherit;font-weight:800;font-size:clamp(22px,5vw,34px);line-height:1.2;color:var(--ink);text-align:center;resize:none;outline:none;
+    border-bottom:3px dashed #0002;padding:6px 4px;user-select:text}
+  .q:focus{border-bottom-color:#ec4899}
+  .hint{font-size:13px;opacity:.6;margin:6px 0 22px}
+  .row{display:flex;gap:18px;justify-content:center;align-items:center;min-height:90px;flex-wrap:wrap}
+  button{font-family:inherit;font-weight:800;font-size:22px;line-height:1;border:none;border-radius:999px;padding:16px 34px;color:#fff;cursor:pointer;box-shadow:0 6px 0 var(--d);transition:transform .12s, box-shadow .12s}
+  button:active{transform:translateY(4px);box-shadow:0 2px 0 var(--d)}
+  #sim{--d:var(--simd);background:var(--sim);transition:transform .35s cubic-bezier(.3,1.6,.5,1),box-shadow .12s;transform-origin:center}
+  #nao{--d:var(--naod);background:var(--nao)}
+  #nao.fugindo{position:fixed;z-index:50;transition:left .25s cubic-bezier(.3,1.4,.5,1),top .25s cubic-bezier(.3,1.4,.5,1),transform .25s}
+  .msg{min-height:28px;margin-top:20px;font-weight:700;font-size:18px;color:#be185d}
+  .bicho{position:fixed;z-index:1;pointer-events:none;font-size:42px;will-change:transform,opacity}
+  .pop{animation:pop 2.6s ease-out forwards}
+  @keyframes pop{0%{transform:scale(0) rotate(0)}15%{transform:scale(1.3) rotate(-15deg)}30%{transform:scale(1) rotate(10deg)}
+    80%{opacity:1;transform:translateY(-40px) rotate(-5deg)}100%{opacity:0;transform:translateY(-90px) rotate(0)}}
+  .corre{animation:corre linear forwards}
+  @keyframes corre{from{transform:translateX(0)}to{transform:translateX(var(--dx))}}
+  .chuva{animation:chuva linear forwards}
+  @keyframes chuva{from{transform:translateY(-10vh) rotate(0)}to{transform:translateY(115vh) rotate(var(--r))}}
+  .vitoria{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;padding:16px;text-align:center;
+    background:radial-gradient(circle,#fffbeb 0,#fde68a 75%)}
+  .vitoria.on{display:flex;animation:fade .4s}
+  @keyframes fade{from{opacity:0}}
+  .vitoria h1{font-size:clamp(34px,9vw,72px);margin:0 0 8px;color:#be185d;animation:pulsa 1s infinite}
+  @keyframes pulsa{50%{transform:scale(1.08)}}
+  .vitoria p{font-size:20px;margin:0 0 20px}
+  .vitoria .gif{font-size:90px;animation:danca .6s infinite alternate}
+  @keyframes danca{from{transform:rotate(-15deg)}to{transform:rotate(15deg) translateY(-10px)}}
+  .acoes{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .acoes button{font-size:16px;padding:12px 22px;--d:#6d28d9;background:#8b5cf6}
+  .tremer{animation:tremer .3s}
+  @keyframes tremer{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important}}
+</style>
+</head>
+<body>
+<main class="card" id="card">
+  <div class="face" id="face">🥺</div>
+  <textarea class="q" id="q" rows="2" maxlength="140" spellcheck="false">Você quer sair comigo?</textarea>
+  <div class="hint">✏️ Toque na pergunta para escrever a sua</div>
+  <div class="row">
+    <button id="sim">Sim</button>
+    <button id="nao">Não</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</main>
+
+<section class="vitoria" id="vitoria">
+  <div class="gif">🐶</div>
+  <h1>EBAAAA! 🎉</h1>
+  <p id="vitoriaTxt">Eu sabia que você ia dizer sim!</p>
+  <div class="acoes">
+    <button id="compartilhar">🔗 Copiar link com a pergunta</button>
+    <button id="denovo">🔁 Fazer outra pergunta</button>
+  </div>
+</section>
+
+<script>
+const $ = s => document.querySelector(s);
+const sim = $('#sim'), nao = $('#nao'), q = $('#q'), msg = $('#msg'), face = $('#face');
+const BICHOS = ['🐶','🐱','🐰','🐹','🐼','🐨','🐸','🐷','🐮','🐵','🐔','🐧','🦆','🦉','🐢','🐙','🦄','🐝','🐞','🦖','🐳','🦊','🦥','🦦','🐿️','🦔','🐌','🦀'];
+const FRASES = [
+  'Ops, errou o botão 😅','Tem certeza?? 🤨','Pensa bem...','O bichinho tá chorando 😭','Esse botão tá com medo de você',
+  'Para de tentar! 🙅','Nem vem!','O Não tirou férias 🏖️','Só tem uma resposta certa 👉','Tá ficando difícil, hein?',
+  'O Sim tá ficando enorme 👀','Desiste, vai 🥹','Erro 404: Não não encontrado','Os bichinhos estão do lado do Sim 🐾',
+  'Já chamei os patos 🦆🦆🦆','Você é teimoso(a), hein!','Ok, agora é pessoal 😤','Aperta o verde 💚'
+];
+const ROSTOS = ['🥺','😢','😭','🥹','😿','💔','😩','🙀','😤','🫠'];
+let fugas = 0, escala = 1;
+const rand = (a,b) => Math.random()*(b-a)+a;
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+// Pergunta vinda do link (?q=...)
+const p = new URLSearchParams(location.search).get('q');
+if (p) q.value = p.slice(0,140);
+const autoAjuste = () => { q.style.height='auto'; q.style.height = q.scrollHeight+'px'; };
+q.addEventListener('input', autoAjuste); autoAjuste();
+
+function bicho(x, y, cls='pop', extra={}) {
+  const el = document.createElement('div');
+  el.className = 'bicho ' + cls;
+  el.textContent = pick(BICHOS);
+  el.style.left = x+'px'; el.style.top = y+'px';
+  el.style.fontSize = (extra.size||rand(30,56))+'px';
+  Object.entries(extra.vars||{}).forEach(([k,v]) => el.style.setProperty(k,v));
+  if (extra.dur) el.style.animationDuration = extra.dur+'s';
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+function bichoCorrendo() {
+  const daEsq = Math.random() < .5, w = innerWidth;
+  bicho(daEsq ? -60 : w+10, rand(innerHeight*.1, innerHeight*.9), 'corre',
+    {vars:{'--dx': (daEsq ? w+120 : -(w+120))+'px'}, dur: rand(2,4), size: rand(36,60)});
+}
+
+function fugir(e) {
+  if (e) e.preventDefault();
+  fugas++;
+  const r = nao.getBoundingClientRect();
+  if (!nao.classList.contains('fugindo')) {
+    nao.style.left = r.left+'px'; nao.style.top = r.top+'px';
+    nao.classList.add('fugindo'); void nao.offsetWidth;
+  }
+  // Escolhe novo lugar longe do atual e longe do botão Sim
+  const pad = 12, w = nao.offsetWidth, h = nao.offsetHeight;
+  const s = sim.getBoundingClientRect();
+  let x, y, tent = 0;
+  do {
+    x = rand(pad, innerWidth - w - pad);
+    y = rand(pad, innerHeight - h - pad);
+    tent++;
+  } while (tent < 40 && (Math.hypot(x-r.left, y-r.top) < 140 ||
+          (x < s.right+20 && x+w > s.left-20 && y < s.bottom+20 && y+h > s.top-20)));
+  nao.style.left = x+'px'; nao.style.top = y+'px';
+  nao.style.transform = `rotate(${rand(-20,20)}deg) scale(${Math.max(.55, 1 - fugas*.03)})`;
+
+  // Sim cresce
+  escala = Math.min(escala + .18, Math.max(2.5, Math.min(innerWidth, innerHeight)/90));
+  sim.style.transform = `scale(${escala})`;
+
+  // Texto, rosto e bichinhos
+  msg.textContent = FRASES[(fugas-1) % FRASES.length];
+  face.textContent = ROSTOS[Math.min(fugas-1, ROSTOS.length-1)];
+  face.style.transform = `scale(${1+Math.min(fugas,10)*.04})`;
+  if (fugas >= 6) nao.textContent = pick(['Não','Nãoo','Nem','N-não','Nop','🙈']);
+  const n = Math.min(2 + Math.floor(fugas/2), 8);
+  for (let i=0;i<n;i++) bicho(rand(0, innerWidth-50), rand(0, innerHeight-50));
+  if (fugas % 3 === 0) bichoCorrendo();
+  if (fugas % 5 === 0) { document.body.classList.add('tremer'); setTimeout(()=>document.body.classList.remove('tremer'),300); }
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+// Foge ao passar o mouse, ao tocar e até se conseguir clicar/focar
+nao.addEventListener('mouseenter', fugir);
+nao.addEventListener('pointerdown', fugir);
+nao.addEventListener('touchstart', fugir, {passive:false});
+nao.addEventListener('click', fugir);
+nao.addEventListener('focus', () => { fugir(); nao.blur(); });
+// Mouse chegando perto também assusta
+document.addEventListener('mousemove', e => {
+  const r = nao.getBoundingClientRect();
+  const dx = e.clientX - (r.left+r.width/2), dy = e.clientY - (r.top+r.height/2);
+  if (Math.hypot(dx,dy) < 70 && !fugir.cool) { fugir.cool = true; fugir(); setTimeout(()=>fugir.cool=false, 280); }
+});
+addEventListener('resize', () => { if (nao.classList.contains('fugindo')) fugir(); });
+
+let chuvaTimer;
+sim.addEventListener('click', () => {
+  $('#vitoriaTxt').textContent = fugas === 0
+    ? 'De primeira! Nem precisou fugir 😎'
+    : `Depois de ${fugas} tentativa${fugas>1?'s':''} de clicar no Não... mas eu sabia que era SIM! 💚`;
+  $('#vitoria').classList.add('on');
+  nao.style.display = 'none';
+  const chover = () => { for (let i=0;i<6;i++) bicho(rand(0, innerWidth-40), 0, 'chuva', {vars:{'--r': rand(-360,360)+'deg'}, dur: rand(2.5,5), size: rand(28,64)}); };
+  chover(); chuvaTimer = setInterval(chover, 350);
+  setInterval(() => { $('#vitoria .gif').textContent = pick(BICHOS); }, 700);
+});
+
+$('#denovo').addEventListener('click', () => { history.replaceState(null,'',location.pathname); location.reload(); });
+$('#compartilhar').addEventListener('click', async e => {
+  const url = location.origin + location.pathname + '?q=' + encodeURIComponent(q.value.trim());
+  try { await navigator.clipboard.writeText(url); e.target.textContent = '✅ Link copiado!'; }
+  catch { prompt('Copie o link:', url); }
+});
+
+// Bichinhos passeando de vez em quando
+setInterval(() => { if (Math.random() < .5) bichoCorrendo(); }, 3500);
+</script>
+</body>
+</html>
